@@ -1,0 +1,227 @@
+/* GuardPrompt Overlay Styles */
+
+#gp-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#gp-panel {
+  background: #ffffff;
+  border-radius: 16px;
+  width: min(600px, 94vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  animation: gp-slide-in 0.18s ease-out;
+}
+
+@keyframes gp-slide-in {
+  from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Header */
+.gp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #f1f1f1;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+}
+
+.gp-header-left { display: flex; align-items: center; gap: 12px; }
+
+.gp-shield { font-size: 28px; line-height: 1; }
+
+.gp-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.3px;
+}
+
+.gp-subtitle {
+  font-size: 12px;
+  color: #888;
+  margin-top: 1px;
+}
+
+.gp-close {
+  background: #f4f4f4;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.gp-close:hover { background: #e8e8e8; color: #222; }
+
+/* Preview */
+.gp-preview-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #999;
+  padding: 16px 24px 6px;
+}
+
+.gp-preview {
+  margin: 0 24px;
+  padding: 14px 16px;
+  background: #f9f9f9;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #333;
+  max-height: 140px;
+  overflow-y: auto;
+  word-break: break-word;
+}
+
+/* Highlighted marks in preview */
+.gp-mark {
+  border-radius: 4px;
+  padding: 1px 3px;
+  font-weight: 600;
+  cursor: default;
+}
+.gp-mark--critical { background: #fee2e2; color: #991b1b; }
+.gp-mark--high     { background: #ffedd5; color: #9a3412; }
+.gp-mark--medium   { background: #fef9c3; color: #713f12; }
+.gp-mark--low      { background: #dcfce7; color: #14532d; }
+
+/* Checklist */
+.gp-findings-label {
+  font-size: 13px;
+  color: #444;
+  padding: 16px 24px 8px;
+}
+
+.gp-findings-label strong { color: #111; }
+
+.gp-checklist {
+  padding: 0 24px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gp-cat-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: #bbb;
+  margin: 10px 0 4px;
+}
+
+.gp-finding-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.gp-finding-row:hover { background: #f5f5f5; }
+
+.gp-cb { width: 15px; height: 15px; cursor: pointer; accent-color: #6366f1; }
+
+.gp-severity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gp-finding-label {
+  font-size: 13px;
+  color: #333;
+  flex: 1;
+}
+
+.gp-finding-match {
+  font-family: "Courier New", monospace;
+  font-size: 11.5px;
+  background: #f1f1f1;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: #555;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gp-count {
+  font-size: 11px;
+  color: #999;
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+/* Action buttons */
+.gp-actions {
+  display: flex;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid #f1f1f1;
+  background: #fff;
+  position: sticky;
+  bottom: 0;
+  border-radius: 0 0 16px 16px;
+}
+
+.gp-btn {
+  flex: 1;
+  padding: 11px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.gp-btn--secondary {
+  background: #f4f4f4;
+  color: #555;
+}
+.gp-btn--secondary:hover { background: #e8e8e8; color: #222; }
+
+.gp-btn--primary {
+  background: #6366f1;
+  color: #fff;
+}
+.gp-btn--primary:hover { background: #4f46e5; }
+
+/* Footer */
+.gp-footer {
+  text-align: center;
+  font-size: 11px;
+  color: #bbb;
+  padding: 0 24px 16px;
+}

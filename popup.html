@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GuardPrompt</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    width: 340px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #fff;
+    color: #111;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    padding: 20px 20px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-shield { font-size: 30px; }
+
+  .header-text .title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.3px;
+  }
+
+  .header-text .sub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.75);
+    margin-top: 2px;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .toggle-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #222;
+  }
+
+  .toggle-sub {
+    font-size: 11px;
+    color: #999;
+    margin-top: 2px;
+  }
+
+  /* Toggle switch */
+  .toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: #ddd;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .slider::before {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+
+  input:checked + .slider { background: #6366f1; }
+  input:checked + .slider::before { transform: translateX(20px); }
+
+  .section { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #aaa;
+    margin-bottom: 10px;
+  }
+
+  /* Custom keywords */
+  .keyword-input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .keyword-input-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1.5px solid #e5e5e5;
+    border-radius: 8px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .keyword-input-row input:focus { border-color: #6366f1; }
+
+  .keyword-input-row button {
+    padding: 8px 14px;
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .keyword-input-row button:hover { background: #4f46e5; }
+
+  .keyword-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 24px;
+  }
+
+  .keyword-tag {
+    background: #ede9fe;
+    color: #4f46e5;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 8px 3px 10px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .keyword-tag .remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #7c3aed;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0;
+  }
+
+  /* Stats */
+  .stats-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .stat-card {
+    flex: 1;
+    background: #f8f7ff;
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .stat-card .val {
+    font-size: 24px;
+    font-weight: 800;
+    color: #6366f1;
+  }
+
+  .stat-card .lab {
+    font-size: 10px;
+    color: #888;
+    margin-top: 2px;
+  }
+
+  /* Log */
+  .log-list {
+    max-height: 130px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .log-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 12px;
+  }
+
+  .log-item:last-child { border-bottom: none; }
+
+  .log-site { font-weight: 700; color: #4f46e5; min-width: 80px; }
+  .log-count { color: #ef4444; font-weight: 700; min-width: 40px; }
+  .log-types { color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .log-empty {
+    font-size: 12px;
+    color: #ccc;
+    text-align: center;
+    padding: 16px 0;
+  }
+
+  .clear-log {
+    font-size: 11px;
+    color: #aaa;
+    background: none;
+    border: none;
+    cursor: pointer;
+    float: right;
+    margin-top: -24px;
+    padding: 0;
+  }
+  .clear-log:hover { color: #ef4444; }
+
+  .footer {
+    padding: 10px 20px 14px;
+    text-align: center;
+    font-size: 11px;
+    color: #ccc;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-shield">🛡️</div>
+  <div class="header-text">
+    <div class="title">GuardPrompt</div>
+    <div class="sub">AI PII Filter · All processing is local</div>
+  </div>
+</div>
+
+<!-- Master toggle -->
+<div class="toggle-row">
+  <div>
+    <div class="toggle-label">Protection enabled</div>
+    <div class="toggle-sub">Intercept before sending to AI</div>
+  </div>
+  <label class="toggle">
+    <input type="checkbox" id="toggle-enabled" />
+    <span class="slider"></span>
+  </label>
+</div>
+
+<!-- Auto-redact toggle -->
+<div class="toggle-row">
+  <div>
+    <div class="toggle-label">Auto-redact</div>
+    <div class="toggle-sub">Silently replace without review prompt</div>
+  </div>
+  <label class="toggle">
+    <input type="checkbox" id="toggle-auto" />
+    <span class="slider"></span>
+  </label>
+</div>
+
+<!-- Custom keywords -->
+<div class="section">
+  <div class="section-title">Custom Keywords to Block</div>
+  <div class="keyword-input-row">
+    <input type="text" id="keyword-input" placeholder="e.g. ProjectAlpha, ClientName…" />
+    <button id="keyword-add">Add</button>
+  </div>
+  <div class="keyword-tags" id="keyword-tags"></div>
+</div>
+
+<!-- Session stats -->
+<div class="section">
+  <div class="section-title">This Session</div>
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="val" id="stat-scans">0</div>
+      <div class="lab">Scans performed</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" id="stat-redactions">0</div>
+      <div class="lab">Items redacted</div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent log -->
+<div class="section">
+  <div class="section-title">Recent Redactions
+    <button class="clear-log" id="clear-log">Clear</button>
+  </div>
+  <div class="log-list" id="log-list">
+    <div class="log-empty">Nothing redacted yet this session</div>
+  </div>
+</div>
+
+<div class="footer">GuardPrompt · Open source · Zero telemetry</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
