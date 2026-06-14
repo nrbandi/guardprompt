@@ -323,8 +323,10 @@
   }
 
   // ── Session log ───────────────────────────────────────────────────────────
-  function logToSession(findings, originalText) {
-    chrome.storage.local.get(["sessionLog"], (res) => {
+ // FIXED
+function logToSession(findings, originalText) {
+  if (!chrome?.storage?.local) return;
+  chrome.storage.local.get(["sessionLog"], (res) => {
       const log = res.sessionLog || [];
       log.push({
         ts: new Date().toISOString(),
