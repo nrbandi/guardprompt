@@ -18,7 +18,7 @@ GuardPrompt sits between you and the AI and catches it first.
 
 ## Demo
 
-> *(Screenshot: overlay appearing on claude.ai with Aadhaar and email highlighted)*
+> *![GuardPrompt overlay screenshot](assets/overlay.png)*
 
 ---
 
