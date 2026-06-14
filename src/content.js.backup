@@ -3,7 +3,9 @@
 
 (function () {
   "use strict";
-  console.log("GuardPrompt content script loaded ✓");
+
+  // ── Inline the detector (since MV3 content scripts can't import modules easily) ──
+  // [detector.js is concatenated here at build time; for dev we duplicate key parts]
 
   const RULES = [
     { id: "email", label: "Email Address", category: "identity", severity: "high", pattern: /\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b/g, placeholder: "[EMAIL]" },
@@ -51,7 +53,13 @@
     return result + text.slice(cursor);
   }
 
-  let settings = { enabled: true, autoRedact: false, customKeywords: [] };
+  // ── Settings loaded from storage ──────────────────────────────────────────
+  let settings = {
+    enabled: true,
+    autoRedact: false,
+    customKeywords: [],
+    sessionLog: [],
+  };
 
   chrome.storage.sync.get(["enabled", "autoRedact", "customKeywords"], (res) => {
     if (res.enabled !== undefined) settings.enabled = res.enabled;
@@ -65,6 +73,7 @@
     if (changes.customKeywords) settings.customKeywords = changes.customKeywords.newValue;
   });
 
+  // ── Custom keyword rules ─────────────────────────────────────────────────
   function buildCustomRules(keywords) {
     return keywords.map((kw) => ({
       id: `custom_${kw}`,
@@ -80,31 +89,37 @@
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
+  // ── Input selectors for known AI chat sites ───────────────────────────────
   const INPUT_SELECTORS = [
-    '[data-testid="chat-input"]',
-    '#prompt-textarea',
+    // Claude
     'div[contenteditable="true"]',
+    // ChatGPT / OpenAI
     'textarea[data-id="root"]',
+    "#prompt-textarea",
+    // Gemini
     "rich-textarea .ql-editor",
+    // Generic fallback
     'textarea[placeholder*="message" i]',
     'textarea[placeholder*="ask" i]',
     'textarea[placeholder*="prompt" i]',
     '[role="textbox"]',
   ];
 
+  // ── Overlay state ─────────────────────────────────────────────────────────
   let overlayEl = null;
   let pendingInput = null;
   let pendingText = "";
   let pendingFindings = [];
-  let findingCheckboxes = {};
-  let cachedInputText = ""; // KEY FIX: cache text on input — ProseMirror clears DOM at keydown
+  let findingCheckboxes = {}; // ruleId -> {checked, el}
 
+  // ── Attach intercept to submit ────────────────────────────────────────────
   function getInputText(el) {
-    // For contenteditable (ProseMirror/Tiptap), always use the cache
-    if (el.getAttribute("contenteditable")) {
-      return cachedInputText || el.innerText || el.textContent || "";
+    // ProseMirror (ChatGPT) stores real text in a sibling hidden textarea
+    if (el.classList.contains('ProseMirror') || el.id === 'prompt-textarea') {
+      const sibling = el.parentElement?.querySelector('textarea');
+      if (sibling && sibling.value.trim()) return sibling.value;
     }
-    return el.tagName === "TEXTAREA" ? el.value : el.innerText || el.textContent || "";
+    return el.tagName === 'TEXTAREA' ? el.value : el.innerText || el.textContent;
   }
 
   function setInputText(el, text) {
@@ -115,6 +130,7 @@
     } else {
       el.innerText = text;
       el.dispatchEvent(new Event("input", { bubbles: true }));
+      // Move cursor to end
       const range = document.createRange();
       range.selectNodeContents(el);
       range.collapse(false);
@@ -125,14 +141,15 @@
   }
 
   function handleSubmitAttempt(inputEl) {
-    if (!settings.enabled) return true;
+    if (!settings.enabled) return true; // let through
     const text = getInputText(inputEl);
     if (!text || !text.trim()) return true;
 
     const customRules = buildCustomRules(settings.customKeywords || []);
     const findings = scanText(text, customRules);
-    if (findings.length === 0) return true;
+    if (findings.length === 0) return true; // clean, let through
 
+    // Auto-redact mode: silently replace and send
     if (settings.autoRedact) {
       const redacted = redactFindings(text, findings);
       setInputText(inputEl, redacted);
@@ -140,17 +157,25 @@
       return true;
     }
 
+    // Manual review mode: show overlay
     pendingInput = inputEl;
     pendingText = text;
     pendingFindings = findings;
     showOverlay(text, findings);
-    return false;
+    return false; // block submission
   }
 
-  const SEVERITY_COLOR = { critical: "#ef4444", high: "#f97316", medium: "#eab308", low: "#22c55e" };
+  // ── Build and show the review overlay ────────────────────────────────────
+  const SEVERITY_COLOR = {
+    critical: "#ef4444",
+    high: "#f97316",
+    medium: "#eab308",
+    low: "#22c55e",
+  };
 
   function highlightText(text, findings) {
-    let html = "", cursor = 0;
+    let html = "";
+    let cursor = 0;
     for (const f of findings) {
       html += escapeHtml(text.slice(cursor, f.start));
       html += `<mark class="gp-mark gp-mark--${f.severity}" title="${f.label}">${escapeHtml(f.match)}</mark>`;
@@ -184,11 +209,17 @@
 
   function showOverlay(text, findings) {
     removeOverlay();
+
     const backdrop = document.createElement("div");
     backdrop.id = "gp-backdrop";
+
     const panel = document.createElement("div");
     panel.id = "gp-panel";
+
     const groups = groupByCategory(findings);
+    const uniqueFindings = deduplicateFindings(findings);
+
+    // Build checklist rows
     findingCheckboxes = {};
     let checklistHTML = "";
     for (const [cat, items] of Object.entries(groups)) {
@@ -210,6 +241,7 @@
           </label>`;
       }
     }
+
     panel.innerHTML = `
       <div class="gp-header">
         <div class="gp-header-left">
@@ -221,27 +253,35 @@
         </div>
         <button class="gp-close" id="gp-close-btn">✕</button>
       </div>
+
       <div class="gp-preview-label">Your message (highlighted):</div>
       <div class="gp-preview" id="gp-preview">${highlightText(text, findings)}</div>
+
       <div class="gp-findings-label">
         Found <strong>${findings.length}</strong> item${findings.length > 1 ? "s" : ""} — select which to redact:
       </div>
       <div class="gp-checklist" id="gp-checklist">${checklistHTML}</div>
+
       <div class="gp-actions">
         <button class="gp-btn gp-btn--secondary" id="gp-send-anyway">Send Unmodified</button>
         <button class="gp-btn gp-btn--primary" id="gp-redact-send">Redact &amp; Send</button>
       </div>
       <div class="gp-footer">All processing is local. No data is sent to GuardPrompt servers.</div>
     `;
+
     backdrop.appendChild(panel);
     document.body.appendChild(backdrop);
     overlayEl = backdrop;
+
+    // Wire up events
     document.getElementById("gp-close-btn").addEventListener("click", removeOverlay);
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) removeOverlay(); });
+
     document.getElementById("gp-send-anyway").addEventListener("click", () => {
       removeOverlay();
       submitInput(pendingInput);
     });
+
     document.getElementById("gp-redact-send").addEventListener("click", () => {
       const checked = [...document.querySelectorAll(".gp-cb:checked")].map((cb) => cb.dataset.uid);
       const toRedact = pendingFindings.filter((f) => checked.includes(`${f.ruleId}::${f.match}`));
@@ -251,6 +291,8 @@
       removeOverlay();
       setTimeout(() => submitInput(pendingInput), 80);
     });
+
+    // Live preview update on checkbox change
     document.getElementById("gp-checklist").addEventListener("change", () => {
       const checked = [...document.querySelectorAll(".gp-cb:checked")].map((cb) => cb.dataset.uid);
       const toHighlight = pendingFindings.filter((f) => checked.includes(`${f.ruleId}::${f.match}`));
@@ -272,18 +314,21 @@
     if (overlayEl) { overlayEl.remove(); overlayEl = null; }
   }
 
+  // ── Force-submit after redaction ──────────────────────────────────────────
   function submitInput(el) {
     if (!el) return;
+    // Try clicking the nearest submit/send button
     const container = el.closest("form") || el.parentElement?.parentElement?.parentElement;
     if (container) {
       const btn = container.querySelector('button[type="submit"], button[aria-label*="send" i], button[data-testid*="send" i]');
       if (btn) { btn.click(); return; }
     }
+    // Fallback: dispatch Enter key
     el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true }));
   }
 
+  // ── Session log ───────────────────────────────────────────────────────────
   function logToSession(findings, originalText) {
-    if (!chrome?.storage?.local) return;
     chrome.storage.local.get(["sessionLog"], (res) => {
       const log = res.sessionLog || [];
       log.push({
@@ -293,36 +338,36 @@
         types: [...new Set(findings.map((f) => f.label))],
         snippet: originalText.slice(0, 60) + (originalText.length > 60 ? "…" : ""),
       });
-      chrome.storage.local.set({ sessionLog: log.slice(-200) });
+      chrome.storage.local.set({ sessionLog: log.slice(-200) }); // keep last 200
     });
   }
 
+  // ── Intercept keyboard submit (Enter / Ctrl+Enter) ─────────────────────────
   function attachKeyboardIntercept(el) {
     if (el.dataset.gpAttached) return;
     el.dataset.gpAttached = "1";
 
-    // Cache text on every input event
-    el.addEventListener("input", () => {
-      cachedInputText = el.innerText || el.textContent || "";
-    });
+    el.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const isMac = navigator.platform.toUpperCase().includes("MAC");
+      const isSubmitCombo = !e.shiftKey && (
+        (isMac && e.metaKey) || (!isMac && e.ctrlKey) || el.tagName === "TEXTAREA" || el.getAttribute("contenteditable")
+      );
+      if (!isSubmitCombo) return;
 
-    // Intercept at document level with capture — fires before site listeners
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" || e.shiftKey) return;
-      if (document.activeElement !== el) return;
-      
       const allowed = handleSubmitAttempt(el);
       if (!allowed) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        e.stopPropagation();
       }
     }, true);
   }
 
+  // ── Intercept click on send button ───────────────────────────────────────
   function attachButtonIntercept(sendBtn, inputEl) {
     if (sendBtn.dataset.gpBtnAttached) return;
     sendBtn.dataset.gpBtnAttached = "1";
+
     sendBtn.addEventListener("click", (e) => {
       const allowed = handleSubmitAttempt(inputEl);
       if (!allowed) {
@@ -332,23 +377,18 @@
     }, true);
   }
 
+  // ── DOM observer: watch for dynamically rendered inputs ───────────────────
   function findAndAttach() {
     for (const selector of INPUT_SELECTORS) {
       document.querySelectorAll(selector).forEach((el) => {
         attachKeyboardIntercept(el);
 
-        // Search broadly for send button — check parent, grandparent, great-grandparent
-        let container = el.parentElement;
-        for (let i = 0; i < 6; i++) {
-          if (!container) break;
-          const sendBtn = container.querySelector(
-            'button[type="submit"], button[aria-label*="send" i], button[data-testid*="send" i], button[aria-label*="Send" i]'
-          );
-          if (sendBtn) {
-            attachButtonIntercept(sendBtn, el);
-            break;
-          }
-          container = container.parentElement;
+        // Try to find adjacent send button
+        const parent = el.closest("form") || el.parentElement;
+        if (parent) {
+          const sendBtn = parent.querySelector('button[type="submit"], button[aria-label*="send" i], button[data-testid*="send" i], button svg');
+          const actualBtn = sendBtn?.closest("button") || sendBtn;
+          if (actualBtn) attachButtonIntercept(actualBtn, el);
         }
       });
     }
@@ -356,6 +396,6 @@
 
   const observer = new MutationObserver(findAndAttach);
   observer.observe(document.body, { childList: true, subtree: true });
-  findAndAttach();
+  findAndAttach(); // initial scan
 
 })();
