@@ -16,7 +16,7 @@ const RULES = [
     label: "Phone Number (India)",
     category: "identity",
     severity: "high",
-    pattern: /(?<!\d)(\+91[\s\-]?)?[6-9]\d{9}(?!\d)/g,
+    pattern: /(?<!\d)(\+91[\s\-]?)?[6-9]\d{4}[\s\-]?\d{5}(?!\d)/g,
     placeholder: "[PHONE]",
   },
   {
@@ -34,7 +34,7 @@ const RULES = [
     label: "Aadhaar Number",
     category: "gov_id",
     severity: "critical",
-    pattern: /\b[2-9]{1}\d{3}[\s\-]?\d{4}[\s\-]?\d{4}\b/g,
+    pattern: /(?<!\d[\s\-]?)\b[2-9]{1}\d{3}[\s\-]?\d{4}[\s\-]?\d{4}\b(?![\s\-]?\d)/g,
     placeholder: "[AADHAAR]",
   },
   {
@@ -86,7 +86,7 @@ const RULES = [
     label: "API Key / Secret Token",
     category: "credentials",
     severity: "critical",
-    pattern: /\b(?:sk|pk|api|key|token|secret|bearer)[-_]?[a-zA-Z0-9]{20,}\b/gi,
+    pattern: /\b(?:sk|pk|api|key|token|secret|bearer)[-_]?[a-zA-Z0-9]{16,}\b/gi,
     placeholder: "[API_KEY]",
   },
   {
