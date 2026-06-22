@@ -7,13 +7,13 @@
 
   const RULES = [
     { id: "email", label: "Email Address", category: "identity", severity: "high", pattern: /\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b/g, placeholder: "[EMAIL]" },
-    { id: "phone_in", label: "Phone (India)", category: "identity", severity: "high", pattern: /(?<!\d)(\+91[\s\-]?)?[6-9]\d{9}(?!\d)/g, placeholder: "[PHONE]" },
+    { id: "phone_in", label: "Phone (India)", category: "identity", severity: "high", pattern: /(?<!\d)(\+91[\s\-]?)?[6-9]\d{4}[\s\-]?\d{5}(?!\d)/g, placeholder: "[PHONE]" },
     { id: "phone_intl", label: "Phone (International)", category: "identity", severity: "high", pattern: /(?<!\d)\+?1?[\s.\-]?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)/g, placeholder: "[PHONE]" },
-    { id: "aadhaar", label: "Aadhaar Number", category: "gov_id", severity: "critical", pattern: /\b[2-9]{1}\d{3}[\s\-]?\d{4}[\s\-]?\d{4}\b/g, placeholder: "[AADHAAR]" },
+    { id: "aadhaar", label: "Aadhaar Number", category: "gov_id", severity: "critical", pattern: /(?<!\d[\s\-]?)\b[2-9]{1}\d{3}[\s\-]?\d{4}[\s\-]?\d{4}\b(?![\s\-]?\d)/g, placeholder: "[AADHAAR]" },
     { id: "pan", label: "PAN Number", category: "gov_id", severity: "critical", pattern: /\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/g, placeholder: "[PAN]" },
     { id: "credit_card", label: "Credit/Debit Card", category: "financial", severity: "critical", pattern: /\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b/g, placeholder: "[CARD_NUMBER]" },
     { id: "ifsc", label: "IFSC Code", category: "financial", severity: "medium", pattern: /\b[A-Z]{4}0[A-Z0-9]{6}\b/g, placeholder: "[IFSC]" },
-    { id: "api_key_generic", label: "API Key / Token", category: "credentials", severity: "critical", pattern: /\b(?:sk|pk|api|key|token|secret|bearer)[-_]?[a-zA-Z0-9]{20,}\b/gi, placeholder: "[API_KEY]" },
+    { id: "api_key_generic", label: "API Key / Token", category: "credentials", severity: "critical", pattern: /\b(?:sk|pk|api|key|token|secret|bearer)[-_]?[a-zA-Z0-9]{16,}\b/gi, placeholder: "[API_KEY]" },
     { id: "aws_key", label: "AWS Access Key", category: "credentials", severity: "critical", pattern: /\bAKIA[0-9A-Z]{16}\b/g, placeholder: "[AWS_KEY]" },
     { id: "jwt", label: "JWT Token", category: "credentials", severity: "critical", pattern: /\beyJ[a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+\b/g, placeholder: "[JWT_TOKEN]" },
     { id: "password_inline", label: "Inline Password", category: "credentials", severity: "critical", pattern: /(?:password|passwd|pwd)\s*[:=]\s*\S+/gi, placeholder: "[PASSWORD]" },
