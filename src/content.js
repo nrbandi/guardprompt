@@ -1,56 +1,18 @@
-// GuardPrompt Content Script
+// PromptKavach Content Script
 // Injected into supported AI chat pages
+//
+// Detection and redaction logic lives entirely in kavach-core.js,
+// which Chrome loads before this file (see manifest.json content_scripts order).
+// This file accesses it via the window.KavachCore global.
 
 (function () {
   "use strict";
-  console.log("GuardPrompt content script loaded ✓");
+  console.log("PromptKavach content script loaded ✓");
 
-  const RULES = [
-    { id: "email", label: "Email Address", category: "identity", severity: "high", pattern: /\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b/g, placeholder: "[EMAIL]" },
-    { id: "phone_in", label: "Phone (India)", category: "identity", severity: "high", pattern: /(?<!\d)(\+91[\s\-]?)?[6-9]\d{4}[\s\-]?\d{5}(?!\d)/g, placeholder: "[PHONE]" },
-    { id: "phone_intl", label: "Phone (International)", category: "identity", severity: "high", pattern: /(?<!\d)\+?1?[\s.\-]?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)/g, placeholder: "[PHONE]" },
-    { id: "aadhaar", label: "Aadhaar Number", category: "gov_id", severity: "critical", pattern: /(?<!\d[\s\-]?)\b[2-9]{1}\d{3}[\s\-]?\d{4}[\s\-]?\d{4}\b(?![\s\-]?\d)/g, placeholder: "[AADHAAR]" },
-    { id: "pan", label: "PAN Number", category: "gov_id", severity: "critical", pattern: /\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/g, placeholder: "[PAN]" },
-    { id: "credit_card", label: "Credit/Debit Card", category: "financial", severity: "critical", pattern: /\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b/g, placeholder: "[CARD_NUMBER]" },
-    { id: "ifsc", label: "IFSC Code", category: "financial", severity: "medium", pattern: /\b[A-Z]{4}0[A-Z0-9]{6}\b/g, placeholder: "[IFSC]" },
-    { id: "api_key_generic", label: "API Key / Token", category: "credentials", severity: "critical", pattern: /\b(?:sk|pk|api|key|token|secret|bearer)[-_]?[a-zA-Z0-9]{16,}\b/gi, placeholder: "[API_KEY]" },
-    { id: "aws_key", label: "AWS Access Key", category: "credentials", severity: "critical", pattern: /\bAKIA[0-9A-Z]{16}\b/g, placeholder: "[AWS_KEY]" },
-    { id: "jwt", label: "JWT Token", category: "credentials", severity: "critical", pattern: /\beyJ[a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+\b/g, placeholder: "[JWT_TOKEN]" },
-    { id: "password_inline", label: "Inline Password", category: "credentials", severity: "critical", pattern: /(?:password|passwd|pwd)\s*[:=]\s*\S+/gi, placeholder: "[PASSWORD]" },
-    { id: "ipv4", label: "IP Address", category: "network", severity: "medium", pattern: /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g, placeholder: "[IP_ADDRESS]" },
-  ];
+  // ── Core engine (provided by kavach-core.js loaded before this file) ──────
+  const { detect, redact, buildCustomRules } = KavachCore;
 
-  function scanText(text, customRules = []) {
-    const allRules = [...RULES, ...customRules];
-    const findings = [];
-    const seen = new Set();
-    for (const rule of allRules) {
-      const re = new RegExp(rule.pattern.source, rule.pattern.flags);
-      let m;
-      while ((m = re.exec(text)) !== null) {
-        const key = `${m.index}-${m[0]}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        if (rule.id === "ipv4") {
-          const ip = m[0];
-          if (ip.startsWith("127.") || ip.startsWith("10.") || ip.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(ip)) continue;
-        }
-        findings.push({ ruleId: rule.id, label: rule.label, category: rule.category, severity: rule.severity, match: m[0], start: m.index, end: m.index + m[0].length, placeholder: rule.placeholder });
-      }
-    }
-    findings.sort((a, b) => a.start - b.start);
-    return findings;
-  }
-
-  function redactFindings(text, findings) {
-    let result = "", cursor = 0;
-    for (const f of findings) {
-      result += text.slice(cursor, f.start) + f.placeholder;
-      cursor = f.end;
-    }
-    return result + text.slice(cursor);
-  }
-
+  // ── Settings ──────────────────────────────────────────────────────────────
   let settings = { enabled: true, autoRedact: false, customKeywords: [] };
 
   chrome.storage.sync.get(["enabled", "autoRedact", "customKeywords"], (res) => {
@@ -65,21 +27,7 @@
     if (changes.customKeywords) settings.customKeywords = changes.customKeywords.newValue;
   });
 
-  function buildCustomRules(keywords) {
-    return keywords.map((kw) => ({
-      id: `custom_${kw}`,
-      label: `Custom: ${kw}`,
-      category: "custom",
-      severity: "high",
-      pattern: new RegExp(`\\b${escapeRegExp(kw)}\\b`, "gi"),
-      placeholder: `[${kw.toUpperCase()}]`,
-    }));
-  }
-
-  function escapeRegExp(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-
+  // ── Input selectors ───────────────────────────────────────────────────────
   const INPUT_SELECTORS = [
     '[data-testid="chat-input"]',
     '#prompt-textarea',
@@ -92,15 +40,16 @@
     '[role="textbox"]',
   ];
 
+  // ── State ─────────────────────────────────────────────────────────────────
   let overlayEl = null;
   let pendingInput = null;
   let pendingText = "";
   let pendingFindings = [];
   let findingCheckboxes = {};
-  let cachedInputText = ""; // KEY FIX: cache text on input — ProseMirror clears DOM at keydown
+  let cachedInputText = ""; // Cache text on input — ProseMirror clears DOM at keydown
 
+  // ── DOM helpers ───────────────────────────────────────────────────────────
   function getInputText(el) {
-    // For contenteditable (ProseMirror/Tiptap), always use the cache
     if (el.getAttribute("contenteditable")) {
       return cachedInputText || el.innerText || el.textContent || "";
     }
@@ -124,17 +73,19 @@
     }
   }
 
+  // ── Submit interception ───────────────────────────────────────────────────
   function handleSubmitAttempt(inputEl) {
     if (!settings.enabled) return true;
     const text = getInputText(inputEl);
     if (!text || !text.trim()) return true;
 
-    const customRules = buildCustomRules(settings.customKeywords || []);
-    const findings = scanText(text, customRules);
+    const extraRules = buildCustomRules(settings.customKeywords || []);
+    const findings = detect(text, { extraRules });
     if (findings.length === 0) return true;
 
     if (settings.autoRedact) {
-      const redacted = redactFindings(text, findings);
+      // In auto-redact mode use plain token replacement (no valueMap needed yet)
+      const { redacted } = redact(text, findings);
       setInputText(inputEl, redacted);
       logToSession(findings, text);
       return true;
@@ -147,6 +98,7 @@
     return false;
   }
 
+  // ── Overlay ───────────────────────────────────────────────────────────────
   const SEVERITY_COLOR = { critical: "#ef4444", high: "#f97316", medium: "#eab308", low: "#22c55e" };
 
   function highlightText(text, findings) {
@@ -215,7 +167,7 @@
         <div class="gp-header-left">
           <span class="gp-shield">🛡️</span>
           <div>
-            <div class="gp-title">GuardPrompt</div>
+            <div class="gp-title">PromptKavach</div>
             <div class="gp-subtitle">Sensitive data detected before sending</div>
           </div>
         </div>
@@ -231,7 +183,7 @@
         <button class="gp-btn gp-btn--secondary" id="gp-send-anyway">Send Unmodified</button>
         <button class="gp-btn gp-btn--primary" id="gp-redact-send">Redact &amp; Send</button>
       </div>
-      <div class="gp-footer">All processing is local. No data is sent to GuardPrompt servers.</div>
+      <div class="gp-footer">All processing is local. No data leaves your device.</div>
     `;
     backdrop.appendChild(panel);
     document.body.appendChild(backdrop);
@@ -245,7 +197,7 @@
     document.getElementById("gp-redact-send").addEventListener("click", () => {
       const checked = [...document.querySelectorAll(".gp-cb:checked")].map((cb) => cb.dataset.uid);
       const toRedact = pendingFindings.filter((f) => checked.includes(`${f.ruleId}::${f.match}`));
-      const redacted = redactFindings(pendingText, toRedact);
+      const { redacted } = redact(pendingText, toRedact);
       setInputText(pendingInput, redacted);
       logToSession(toRedact, pendingText);
       removeOverlay();
@@ -258,20 +210,11 @@
     });
   }
 
-  function deduplicateFindings(findings) {
-    const seen = new Set();
-    return findings.filter((f) => {
-      const k = `${f.ruleId}::${f.match}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-  }
-
   function removeOverlay() {
     if (overlayEl) { overlayEl.remove(); overlayEl = null; }
   }
 
+  // ── Submit dispatch ────────────────────────────────────────────────────────
   function submitInput(el) {
     if (!el) return;
     const container = el.closest("form") || el.parentElement?.parentElement?.parentElement;
@@ -282,6 +225,7 @@
     el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true }));
   }
 
+  // ── Session log ────────────────────────────────────────────────────────────
   function logToSession(findings, originalText) {
     if (!chrome?.storage?.local) return;
     chrome.storage.local.get(["sessionLog"], (res) => {
@@ -297,20 +241,18 @@
     });
   }
 
+  // ── Input attachment ───────────────────────────────────────────────────────
   function attachKeyboardIntercept(el) {
     if (el.dataset.gpAttached) return;
     el.dataset.gpAttached = "1";
 
-    // Cache text on every input event
     el.addEventListener("input", () => {
       cachedInputText = el.innerText || el.textContent || "";
     });
 
-    // Intercept at document level with capture — fires before site listeners
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" || e.shiftKey) return;
       if (document.activeElement !== el) return;
-      
       const allowed = handleSubmitAttempt(el);
       if (!allowed) {
         e.preventDefault();
@@ -336,8 +278,6 @@
     for (const selector of INPUT_SELECTORS) {
       document.querySelectorAll(selector).forEach((el) => {
         attachKeyboardIntercept(el);
-
-        // Search broadly for send button — check parent, grandparent, great-grandparent
         let container = el.parentElement;
         for (let i = 0; i < 6; i++) {
           if (!container) break;

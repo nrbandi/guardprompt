@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmo0OoDRTb+NyBEpAQcJKXDLt/XX3N5cPHzxUnZ7cARA0wGSJhdIrqmbDzeNmu+X7fzV7+m/IjPwlff4TTUiWDYG6ZkP7Qwunku4rcHIEqz3KfI/7USqU5h5nZreVZjOyBv2grALg4W9m4t9dzUC92DOkXiM4POmEo410AZ04mjtjbXKB05suVE03dvYrM1xBZt4HN+y2+imhHvu9nNHkF04aNVgmMW6AQb2mXj6TUrhxhZLwBxRtBGSJnORl1MhlHCy45HY161XYFsMpsQeC8jMyy65OwUtEDsDN/arOC9SJFZMg9hbHfg1ZSDPqyiGWorShzMJ5R2hK9ygbpmKh1QIDAQAB",
-  "name": "GuardPrompt – AI PII Filter",
-  "version": "1.0.0",
+  "name": "PromptKavach – AI PII Filter",
+  "version": "1.1.0",
   "description": "Intercepts sensitive and personally identifiable information before it reaches any AI chat interface.",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
@@ -29,14 +29,14 @@
         "https://you.com/*",
         "https://poe.com/*"
       ],
-      "js": ["src/content.js"],
+      "js": ["src/kavach-core.js", "src/content.js"],
       "css": ["src/overlay.css"],
       "run_at": "document_idle"
     }
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "GuardPrompt"
+    "default_title": "PromptKavach"
   },
   "background": {
     "service_worker": "src/background.js"
